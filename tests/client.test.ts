@@ -42,6 +42,7 @@ describe("Plop client", () => {
     expect(plop.mailboxes).toBeDefined();
     expect(plop.messages).toBeDefined();
     expect(plop.webhooks).toBeDefined();
+    expect(plop.apiKeys).toBeDefined();
   });
 
   it("sends correct authorization header", async () => {
@@ -197,10 +198,13 @@ describe("Plop client", () => {
   describe("messages.list", () => {
     it("passes all query parameters", async () => {
       const mockFetch = vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ data: [] }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
+        new Response(
+          JSON.stringify({ data: { data: [], has_more: false } }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
       );
       globalThis.fetch = mockFetch;
 
@@ -217,6 +221,42 @@ describe("Plop client", () => {
       expect(url).toContain("tag=login");
       expect(url).toContain("limit=10");
       expect(url).toContain("since=2025-01-01T00%3A00%3A00Z");
+    });
+
+    it("passes after_id query parameter", async () => {
+      const mockFetch = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({ data: { data: [], has_more: false } }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      );
+      globalThis.fetch = mockFetch;
+
+      const plop = new Plop({ apiKey: TEST_API_KEY });
+      await plop.messages.list({ after_id: "msg-123" });
+
+      const [url] = mockFetch.mock.calls[0];
+      expect(url).toContain("after_id=msg-123");
+    });
+
+    it("returns list messages response with has_more", async () => {
+      const response = { data: [], has_more: true };
+      globalThis.fetch = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ data: response }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      const plop = new Plop({ apiKey: TEST_API_KEY });
+      const { data, error } = await plop.messages.list();
+
+      expect(error).toBeNull();
+      expect(data).toEqual(response);
+      expect(data!.has_more).toBe(true);
     });
   });
 

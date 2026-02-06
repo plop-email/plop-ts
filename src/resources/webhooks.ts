@@ -1,10 +1,21 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import type { Plop } from "../client.js";
 import { PlopError } from "../error.js";
-import type { VerifyWebhookParams } from "../types.js";
+import type {
+  CreateWebhookParams,
+  ListDeliveriesParams,
+  PlopResponse,
+  VerifyWebhookParams,
+  WebhookCreatedResponse,
+  WebhookDelivery,
+  WebhookEndpoint,
+} from "../types.js";
 
 const SIGNATURE_TOLERANCE_SECONDS = 300; // 5 minutes
 
 export class Webhooks {
+  constructor(private readonly client: Plop) {}
+
   verify(params: VerifyWebhookParams): boolean {
     const { secret, signature, body } = params;
 
@@ -34,6 +45,45 @@ export class Webhooks {
     } catch {
       return false;
     }
+  }
+
+  async list(): Promise<PlopResponse<WebhookEndpoint[]>> {
+    return this.client.request<WebhookEndpoint[]>("GET", "/v1/webhooks");
+  }
+
+  async create(params: CreateWebhookParams): Promise<PlopResponse<WebhookCreatedResponse>> {
+    return this.client.request<WebhookCreatedResponse>("POST", "/v1/webhooks", undefined, params);
+  }
+
+  async delete(id: string): Promise<PlopResponse<{ id: string }>> {
+    return this.client.request<{ id: string }>(
+      "DELETE",
+      `/v1/webhooks/${encodeURIComponent(id)}`,
+    );
+  }
+
+  async toggle(id: string, active: boolean): Promise<PlopResponse<{ id: string; active: boolean }>> {
+    return this.client.request<{ id: string; active: boolean }>(
+      "PATCH",
+      `/v1/webhooks/${encodeURIComponent(id)}`,
+      undefined,
+      { active },
+    );
+  }
+
+  async deliveries(
+    id: string,
+    params?: ListDeliveriesParams,
+  ): Promise<PlopResponse<WebhookDelivery[]>> {
+    const query: Record<string, string | undefined> = {};
+    if (params?.limit !== undefined) query.limit = String(params.limit);
+    if (params?.offset !== undefined) query.offset = String(params.offset);
+
+    return this.client.request<WebhookDelivery[]>(
+      "GET",
+      `/v1/webhooks/${encodeURIComponent(id)}/deliveries`,
+      Object.keys(query).length > 0 ? query : undefined,
+    );
   }
 }
 

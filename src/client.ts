@@ -1,4 +1,5 @@
 import { PlopError } from "./error.js";
+import { ApiKeys } from "./resources/api-keys.js";
 import { Mailboxes } from "./resources/mailboxes.js";
 import { Messages } from "./resources/messages.js";
 import { Webhooks } from "./resources/webhooks.js";
@@ -10,6 +11,7 @@ export class Plop {
   readonly mailboxes: Mailboxes;
   readonly messages: Messages;
   readonly webhooks: Webhooks;
+  readonly apiKeys: ApiKeys;
 
   private readonly apiKey: string;
   private readonly baseUrl: string;
@@ -27,13 +29,15 @@ export class Plop {
 
     this.mailboxes = new Mailboxes(this);
     this.messages = new Messages(this);
-    this.webhooks = new Webhooks();
+    this.webhooks = new Webhooks(this);
+    this.apiKeys = new ApiKeys(this);
   }
 
   async request<T>(
     method: string,
     path: string,
     query?: Record<string, string | undefined>,
+    body?: unknown,
   ): Promise<PlopResponse<T>> {
     const url = new URL(`${this.baseUrl}${path}`);
     if (query) {
@@ -50,8 +54,9 @@ export class Plop {
         method,
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
-          "Content-Type": "application/json",
+          ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
         },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       });
     } catch (err) {
       return {
@@ -81,7 +86,41 @@ export class Plop {
       };
     }
 
-    const body = (await response.json()) as { data: T };
-    return { data: body.data, error: null };
+    const responseBody = (await response.json()) as { data: T };
+    return { data: responseBody.data, error: null };
+  }
+
+  /** Low-level streaming fetch for SSE endpoints. */
+  async streamFetch(
+    path: string,
+    query?: Record<string, string | undefined>,
+    signal?: AbortSignal,
+  ): Promise<Response> {
+    const url = new URL(`${this.baseUrl}${path}`);
+    if (query) {
+      for (const [key, value] of Object.entries(query)) {
+        if (value !== undefined) {
+          url.searchParams.set(key, value);
+        }
+      }
+    }
+
+    const response = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${this.apiKey}` },
+      signal,
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Request failed with status ${response.status}`;
+      try {
+        const body = (await response.json()) as ErrorResponse;
+        if (body.error) errorMessage = body.error;
+      } catch {
+        // ignore
+      }
+      throw new PlopError(errorMessage, response.status);
+    }
+
+    return response;
   }
 }

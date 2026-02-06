@@ -1,14 +1,25 @@
 export { Plop } from "./client.js";
 export { PlopError } from "./error.js";
 export type {
+  ApiKeyInfo,
+  ApiKeyRotateResponse,
+  CreateMailboxParams,
+  CreateWebhookParams,
   ErrorResponse,
+  ListDeliveriesParams,
   ListMailboxesParams,
   ListMessagesParams,
+  ListMessagesResponse,
   Mailbox,
   MessageDetail,
   MessageSummary,
   PlopOptions,
   PlopResponse,
+  StreamOptions,
+  UpdateMailboxParams,
   VerifyWebhookParams,
   WaitForOptions,
+  WebhookCreatedResponse,
+  WebhookDelivery,
+  WebhookEndpoint,
 } from "./types.js";
