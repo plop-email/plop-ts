@@ -1,8 +1,7 @@
 import { createHmac } from "node:crypto";
-import { describe, expect, it, vi } from "vitest";
-import { Plop, PlopError } from "../src/index.js";
-
-const TEST_API_KEY = "plop_" + "a".repeat(64);
+import { describe, expect, it } from "vitest";
+import { PlopError } from "../src/index.js";
+import { createTestClient } from "./helpers.js";
 
 function createSignature(
   secret: string,
@@ -22,7 +21,7 @@ describe("webhooks.verify", () => {
     const body = '{"event":"message.received","data":{}}';
     const signature = createSignature(secret, body);
 
-    const plop = new Plop({ apiKey: TEST_API_KEY });
+    const plop = createTestClient();
     const result = plop.webhooks.verify({ secret, signature, body });
 
     expect(result).toBe(true);
@@ -33,7 +32,7 @@ describe("webhooks.verify", () => {
     const body = '{"event":"message.received","data":{}}';
     const signature = createSignature("wrong_secret", body);
 
-    const plop = new Plop({ apiKey: TEST_API_KEY });
+    const plop = createTestClient();
     const result = plop.webhooks.verify({ secret, signature, body });
 
     expect(result).toBe(false);
@@ -44,7 +43,7 @@ describe("webhooks.verify", () => {
     const body = '{"event":"message.received","data":{}}';
     const signature = createSignature(secret, body);
 
-    const plop = new Plop({ apiKey: TEST_API_KEY });
+    const plop = createTestClient();
     const result = plop.webhooks.verify({
       secret,
       signature,
@@ -60,7 +59,7 @@ describe("webhooks.verify", () => {
     const oldTimestamp = Math.floor(Date.now() / 1000) - 600; // 10 min ago
     const signature = createSignature(secret, body, oldTimestamp);
 
-    const plop = new Plop({ apiKey: TEST_API_KEY });
+    const plop = createTestClient();
     const result = plop.webhooks.verify({ secret, signature, body });
 
     expect(result).toBe(false);
@@ -72,14 +71,14 @@ describe("webhooks.verify", () => {
     const recentTimestamp = Math.floor(Date.now() / 1000) - 60; // 1 min ago
     const signature = createSignature(secret, body, recentTimestamp);
 
-    const plop = new Plop({ apiKey: TEST_API_KEY });
+    const plop = createTestClient();
     const result = plop.webhooks.verify({ secret, signature, body });
 
     expect(result).toBe(true);
   });
 
   it("throws PlopError for malformed signature", () => {
-    const plop = new Plop({ apiKey: TEST_API_KEY });
+    const plop = createTestClient();
 
     expect(() =>
       plop.webhooks.verify({
@@ -99,7 +98,7 @@ describe("webhooks.verify", () => {
   });
 
   it("throws PlopError for missing parts", () => {
-    const plop = new Plop({ apiKey: TEST_API_KEY });
+    const plop = createTestClient();
 
     expect(() =>
       plop.webhooks.verify({
@@ -119,10 +118,9 @@ describe("webhooks.verify", () => {
   });
 
   it("returns false for non-hex v1 value", () => {
-    const plop = new Plop({ apiKey: TEST_API_KEY });
+    const plop = createTestClient();
     const ts = Math.floor(Date.now() / 1000);
 
-    // Non-hex string will cause Buffer.from to produce different length
     const result = plop.webhooks.verify({
       secret: "whsec_test",
       signature: `t=${ts},v1=not_valid_hex_string`,

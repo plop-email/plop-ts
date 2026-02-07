@@ -1,6 +1,5 @@
 export class PlopError extends Error {
   readonly status: number;
-  readonly code?: string;
   readonly details?: Record<string, string[]>;
 
   constructor(

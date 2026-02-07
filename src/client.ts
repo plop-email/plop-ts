@@ -33,12 +33,10 @@ export class Plop {
     this.apiKeys = new ApiKeys(this);
   }
 
-  async request<T>(
-    method: string,
+  private buildUrl(
     path: string,
     query?: Record<string, string | undefined>,
-    body?: unknown,
-  ): Promise<PlopResponse<T>> {
+  ): string {
     const url = new URL(`${this.baseUrl}${path}`);
     if (query) {
       for (const [key, value] of Object.entries(query)) {
@@ -47,10 +45,20 @@ export class Plop {
         }
       }
     }
+    return url.toString();
+  }
+
+  async request<T>(
+    method: string,
+    path: string,
+    query?: Record<string, string | undefined>,
+    body?: unknown,
+  ): Promise<PlopResponse<T>> {
+    const url = this.buildUrl(path, query);
 
     let response: Response;
     try {
-      response = await fetch(url.toString(), {
+      response = await fetch(url, {
         method,
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
@@ -96,16 +104,9 @@ export class Plop {
     query?: Record<string, string | undefined>,
     signal?: AbortSignal,
   ): Promise<Response> {
-    const url = new URL(`${this.baseUrl}${path}`);
-    if (query) {
-      for (const [key, value] of Object.entries(query)) {
-        if (value !== undefined) {
-          url.searchParams.set(key, value);
-        }
-      }
-    }
+    const url = this.buildUrl(path, query);
 
-    const response = await fetch(url.toString(), {
+    const response = await fetch(url, {
       headers: { Authorization: `Bearer ${this.apiKey}` },
       signal,
     });

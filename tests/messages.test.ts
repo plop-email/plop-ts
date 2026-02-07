@@ -1,7 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Plop, PlopError } from "../src/index.js";
-
-const TEST_API_KEY = "plop_" + "a".repeat(64);
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { PlopError } from "../src/index.js";
+import { createTestClient, mockFetchData, mockFetchError } from "./helpers.js";
 
 const makeMessage = (overrides = {}) => ({
   id: "uuid-1",
@@ -31,14 +30,9 @@ describe("messages.waitFor", () => {
 
   it("returns immediately if message is found on first poll", async () => {
     const message = makeMessage();
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ data: message }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
+    globalThis.fetch = mockFetchData(message);
 
-    const plop = new Plop({ apiKey: TEST_API_KEY });
+    const plop = createTestClient();
     const result = await plop.messages.waitFor(
       { mailbox: "qa", tag: "verify" },
       { timeout: 5_000, interval: 100 },
@@ -66,7 +60,7 @@ describe("messages.waitFor", () => {
       });
     });
 
-    const plop = new Plop({ apiKey: TEST_API_KEY });
+    const plop = createTestClient();
     const result = await plop.messages.waitFor(
       { mailbox: "qa", tag: "verify" },
       { timeout: 10_000, interval: 10 },
@@ -77,14 +71,9 @@ describe("messages.waitFor", () => {
   });
 
   it("throws PlopError on timeout", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({ error: "No messages found" }),
-        { status: 404, headers: { "Content-Type": "application/json" } },
-      ),
-    );
+    globalThis.fetch = mockFetchError("No messages found", 404);
 
-    const plop = new Plop({ apiKey: TEST_API_KEY });
+    const plop = createTestClient();
 
     await expect(
       plop.messages.waitFor(
@@ -102,14 +91,9 @@ describe("messages.waitFor", () => {
   });
 
   it("throws immediately on non-404 errors", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
+    globalThis.fetch = mockFetchError("Unauthorized", 401);
 
-    const plop = new Plop({ apiKey: TEST_API_KEY });
+    const plop = createTestClient();
 
     await expect(
       plop.messages.waitFor(
@@ -121,20 +105,16 @@ describe("messages.waitFor", () => {
 
   it("passes since parameter to filter by start time", async () => {
     const message = makeMessage();
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ data: message }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
+    const mock = mockFetchData(message);
+    globalThis.fetch = mock;
 
-    const plop = new Plop({ apiKey: TEST_API_KEY });
+    const plop = createTestClient();
     await plop.messages.waitFor(
       { mailbox: "qa", tag: "verify" },
       { timeout: 5_000, interval: 100 },
     );
 
-    const [url] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [url] = mock.mock.calls[0];
     expect(url).toContain("since=");
     expect(url).toContain("mailbox=qa");
     expect(url).toContain("tag=verify");
@@ -142,14 +122,9 @@ describe("messages.waitFor", () => {
 
   it("uses default timeout and interval", async () => {
     const message = makeMessage();
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ data: message }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
+    globalThis.fetch = mockFetchData(message);
 
-    const plop = new Plop({ apiKey: TEST_API_KEY });
+    const plop = createTestClient();
     const result = await plop.messages.waitFor({ mailbox: "qa" });
 
     expect(result).toEqual(message);
@@ -157,21 +132,16 @@ describe("messages.waitFor", () => {
 
   describe("messages.delete", () => {
     it("sends DELETE request", async () => {
-      const mockFetch = vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ data: { id: "uuid-1" } }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
-      globalThis.fetch = mockFetch;
+      const mock = mockFetchData({ id: "uuid-1" });
+      globalThis.fetch = mock;
 
-      const plop = new Plop({ apiKey: TEST_API_KEY });
+      const plop = createTestClient();
       const { data, error } = await plop.messages.delete("uuid-1");
 
       expect(error).toBeNull();
       expect(data).toEqual({ id: "uuid-1" });
 
-      const [url, init] = mockFetch.mock.calls[0];
+      const [url, init] = mock.mock.calls[0];
       expect(init.method).toBe("DELETE");
       expect(url).toContain("/v1/messages/uuid-1");
     });
@@ -222,7 +192,7 @@ describe("messages.waitFor", () => {
         }),
       );
 
-      const plop = new Plop({ apiKey: TEST_API_KEY });
+      const plop = createTestClient();
       const messages = [];
       for await (const msg of plop.messages.stream({ mailbox: "qa" })) {
         messages.push(msg);
@@ -240,57 +210,50 @@ describe("messages.waitFor", () => {
         },
       });
 
-      const mockFetch = vi.fn().mockResolvedValue(
+      const mock = vi.fn().mockResolvedValue(
         new Response(stream, {
           status: 200,
           headers: { "Content-Type": "text/event-stream" },
         }),
       );
-      globalThis.fetch = mockFetch;
+      globalThis.fetch = mock;
 
-      const plop = new Plop({ apiKey: TEST_API_KEY });
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const plop = createTestClient();
       for await (const _ of plop.messages.stream({ mailbox: "qa", tag: "otp" })) {
         // drain
       }
 
-      const [url] = mockFetch.mock.calls[0];
+      const [url] = mock.mock.calls[0];
       expect(url).toContain("/v1/messages/stream");
       expect(url).toContain("mailbox=qa");
       expect(url).toContain("tag=otp");
     });
 
     it("throws PlopError for non-OK response", async () => {
-      globalThis.fetch = vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ error: "Unauthorized" }), {
-          status: 401,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
+      globalThis.fetch = mockFetchError("Unauthorized", 401);
 
-      const plop = new Plop({ apiKey: TEST_API_KEY });
+      const plop = createTestClient();
 
-      await expect(async () => {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      let thrown: unknown;
+      try {
         for await (const _ of plop.messages.stream()) {
           // drain
         }
-      }).rejects.toThrow(PlopError);
+      } catch (err) {
+        thrown = err;
+      }
+
+      expect(thrown).toBeInstanceOf(PlopError);
     });
   });
 
   describe("messages.latest", () => {
     it("requests the correct path with params", async () => {
       const message = makeMessage();
-      const mockFetch = vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ data: message }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
-      globalThis.fetch = mockFetch;
+      const mock = mockFetchData(message);
+      globalThis.fetch = mock;
 
-      const plop = new Plop({ apiKey: TEST_API_KEY });
+      const plop = createTestClient();
       const { data, error } = await plop.messages.latest({
         mailbox: "qa",
         tag: "otp",
@@ -298,21 +261,16 @@ describe("messages.waitFor", () => {
 
       expect(error).toBeNull();
       expect(data).toEqual(message);
-      const [url] = mockFetch.mock.calls[0];
+      const [url] = mock.mock.calls[0];
       expect(url).toContain("/v1/messages/latest");
       expect(url).toContain("mailbox=qa");
       expect(url).toContain("tag=otp");
     });
 
     it("returns error for 404", async () => {
-      globalThis.fetch = vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({ error: "No messages found" }),
-          { status: 404, headers: { "Content-Type": "application/json" } },
-        ),
-      );
+      globalThis.fetch = mockFetchError("No messages found", 404);
 
-      const plop = new Plop({ apiKey: TEST_API_KEY });
+      const plop = createTestClient();
       const { data, error } = await plop.messages.latest({ mailbox: "qa" });
 
       expect(data).toBeNull();

@@ -9,6 +9,7 @@ import type {
   StreamOptions,
   WaitForOptions,
 } from "../types.js";
+import { sleep, toQuery } from "../utils.js";
 
 export class Messages {
   constructor(private readonly client: Plop) {}
@@ -51,7 +52,7 @@ export class Messages {
     params?: Pick<ListMessagesParams, "mailbox" | "tag" | "since">,
     options?: StreamOptions,
   ): AsyncGenerator<MessageSummary> {
-    const query = params ? toQuery(params as ListMessagesParams) : undefined;
+    const query = toQuery(params);
 
     const response = await this.client.streamFetch(
       "/v1/messages/stream",
@@ -135,21 +136,4 @@ export class Messages {
 
     throw new PlopError("Timeout waiting for message", 408);
   }
-}
-
-function toQuery(
-  params?: ListMessagesParams,
-): Record<string, string | undefined> | undefined {
-  if (!params) return undefined;
-  const query: Record<string, string | undefined> = {};
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined) {
-      query[key] = String(value);
-    }
-  }
-  return query;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

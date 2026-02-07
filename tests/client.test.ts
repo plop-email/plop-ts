@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Plop, PlopError } from "../src/index.js";
-
-const TEST_API_KEY = "plop_" + "a".repeat(64);
+import {
+  TEST_API_KEY,
+  createTestClient,
+  jsonResponse,
+  mockFetchData,
+  mockFetchError,
+} from "./helpers.js";
 
 describe("Plop client", () => {
   const originalFetch = globalThis.fetch;
@@ -38,7 +43,7 @@ describe("Plop client", () => {
   });
 
   it("creates resource instances", () => {
-    const plop = new Plop({ apiKey: TEST_API_KEY });
+    const plop = createTestClient();
     expect(plop.mailboxes).toBeDefined();
     expect(plop.messages).toBeDefined();
     expect(plop.webhooks).toBeDefined();
@@ -46,30 +51,20 @@ describe("Plop client", () => {
   });
 
   it("sends correct authorization header", async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ data: [] }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-    globalThis.fetch = mockFetch;
+    const mock = mockFetchData([]);
+    globalThis.fetch = mock;
 
-    const plop = new Plop({ apiKey: TEST_API_KEY });
+    const plop = createTestClient();
     await plop.mailboxes.list();
 
-    expect(mockFetch).toHaveBeenCalledOnce();
-    const [url, init] = mockFetch.mock.calls[0];
+    expect(mock).toHaveBeenCalledOnce();
+    const [, init] = mock.mock.calls[0];
     expect(init.headers.Authorization).toBe(`Bearer ${TEST_API_KEY}`);
   });
 
   it("uses custom base URL", async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ data: [] }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-    globalThis.fetch = mockFetch;
+    const mock = mockFetchData([]);
+    globalThis.fetch = mock;
 
     const plop = new Plop({
       apiKey: TEST_API_KEY,
@@ -77,18 +72,13 @@ describe("Plop client", () => {
     });
     await plop.mailboxes.list();
 
-    const [url] = mockFetch.mock.calls[0];
+    const [url] = mock.mock.calls[0];
     expect(url).toContain("https://custom.api.com/v1/mailboxes");
   });
 
   it("strips trailing slash from base URL", async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ data: [] }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
-    globalThis.fetch = mockFetch;
+    const mock = mockFetchData([]);
+    globalThis.fetch = mock;
 
     const plop = new Plop({
       apiKey: TEST_API_KEY,
@@ -96,19 +86,14 @@ describe("Plop client", () => {
     });
     await plop.mailboxes.list();
 
-    const [url] = mockFetch.mock.calls[0];
+    const [url] = mock.mock.calls[0];
     expect(url).not.toContain("//v1");
   });
 
   it("returns error for non-OK response", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      }),
-    );
+    globalThis.fetch = mockFetchError("Unauthorized", 401);
 
-    const plop = new Plop({ apiKey: TEST_API_KEY });
+    const plop = createTestClient();
     const { data, error } = await plop.mailboxes.list();
 
     expect(data).toBeNull();
@@ -119,19 +104,16 @@ describe("Plop client", () => {
 
   it("returns error with details for validation errors", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
+      jsonResponse(
+        {
           error: "Bad request",
           details: { limit: ["Must be between 1 and 200"] },
-        }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
         },
+        400,
       ),
     );
 
-    const plop = new Plop({ apiKey: TEST_API_KEY });
+    const plop = createTestClient();
     const { data, error } = await plop.messages.list({ limit: 999 });
 
     expect(data).toBeNull();
@@ -143,7 +125,7 @@ describe("Plop client", () => {
   it("handles network errors gracefully", async () => {
     globalThis.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
 
-    const plop = new Plop({ apiKey: TEST_API_KEY });
+    const plop = createTestClient();
     const { data, error } = await plop.mailboxes.list();
 
     expect(data).toBeNull();
@@ -154,18 +136,13 @@ describe("Plop client", () => {
 
   describe("mailboxes.list", () => {
     it("passes query parameters", async () => {
-      const mockFetch = vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ data: [] }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
-      globalThis.fetch = mockFetch;
+      const mock = mockFetchData([]);
+      globalThis.fetch = mock;
 
-      const plop = new Plop({ apiKey: TEST_API_KEY });
+      const plop = createTestClient();
       await plop.mailboxes.list({ mailbox: "qa" });
 
-      const [url] = mockFetch.mock.calls[0];
+      const [url] = mock.mock.calls[0];
       expect(url).toContain("mailbox=qa");
     });
 
@@ -180,14 +157,9 @@ describe("Plop client", () => {
           address: "qa@in.plop.email",
         },
       ];
-      globalThis.fetch = vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ data: mailboxes }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
+      globalThis.fetch = mockFetchData(mailboxes);
 
-      const plop = new Plop({ apiKey: TEST_API_KEY });
+      const plop = createTestClient();
       const { data, error } = await plop.mailboxes.list();
 
       expect(error).toBeNull();
@@ -197,18 +169,10 @@ describe("Plop client", () => {
 
   describe("messages.list", () => {
     it("passes all query parameters", async () => {
-      const mockFetch = vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({ data: { data: [], has_more: false } }),
-          {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          },
-        ),
-      );
-      globalThis.fetch = mockFetch;
+      const mock = mockFetchData({ data: [], has_more: false });
+      globalThis.fetch = mock;
 
-      const plop = new Plop({ apiKey: TEST_API_KEY });
+      const plop = createTestClient();
       await plop.messages.list({
         mailbox: "qa",
         tag: "login",
@@ -216,7 +180,7 @@ describe("Plop client", () => {
         since: "2025-01-01T00:00:00Z",
       });
 
-      const [url] = mockFetch.mock.calls[0];
+      const [url] = mock.mock.calls[0];
       expect(url).toContain("mailbox=qa");
       expect(url).toContain("tag=login");
       expect(url).toContain("limit=10");
@@ -224,34 +188,21 @@ describe("Plop client", () => {
     });
 
     it("passes after_id query parameter", async () => {
-      const mockFetch = vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({ data: { data: [], has_more: false } }),
-          {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          },
-        ),
-      );
-      globalThis.fetch = mockFetch;
+      const mock = mockFetchData({ data: [], has_more: false });
+      globalThis.fetch = mock;
 
-      const plop = new Plop({ apiKey: TEST_API_KEY });
+      const plop = createTestClient();
       await plop.messages.list({ after_id: "msg-123" });
 
-      const [url] = mockFetch.mock.calls[0];
+      const [url] = mock.mock.calls[0];
       expect(url).toContain("after_id=msg-123");
     });
 
     it("returns list messages response with has_more", async () => {
       const response = { data: [], has_more: true };
-      globalThis.fetch = vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ data: response }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
+      globalThis.fetch = mockFetchData(response);
 
-      const plop = new Plop({ apiKey: TEST_API_KEY });
+      const plop = createTestClient();
       const { data, error } = await plop.messages.list();
 
       expect(error).toBeNull();
@@ -278,32 +229,22 @@ describe("Plop client", () => {
         domain: "in.plop.email",
         tenantSubdomain: null,
       };
-      const mockFetch = vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ data: message }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
-      globalThis.fetch = mockFetch;
+      const mock = mockFetchData(message);
+      globalThis.fetch = mock;
 
-      const plop = new Plop({ apiKey: TEST_API_KEY });
+      const plop = createTestClient();
       const { data, error } = await plop.messages.get("uuid-1");
 
       expect(error).toBeNull();
       expect(data).toEqual(message);
-      const [url] = mockFetch.mock.calls[0];
+      const [url] = mock.mock.calls[0];
       expect(url).toContain("/v1/messages/uuid-1");
     });
 
     it("returns 404 error for missing message", async () => {
-      globalThis.fetch = vi.fn().mockResolvedValue(
-        new Response(JSON.stringify({ error: "Not found" }), {
-          status: 404,
-          headers: { "Content-Type": "application/json" },
-        }),
-      );
+      globalThis.fetch = mockFetchError("Not found", 404);
 
-      const plop = new Plop({ apiKey: TEST_API_KEY });
+      const plop = createTestClient();
       const { data, error } = await plop.messages.get("nonexistent");
 
       expect(data).toBeNull();

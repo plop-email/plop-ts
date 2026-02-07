@@ -10,6 +10,7 @@ import type {
   WebhookDelivery,
   WebhookEndpoint,
 } from "../types.js";
+import { toQuery } from "../utils.js";
 
 const SIGNATURE_TOLERANCE_SECONDS = 300; // 5 minutes
 
@@ -75,14 +76,10 @@ export class Webhooks {
     id: string,
     params?: ListDeliveriesParams,
   ): Promise<PlopResponse<WebhookDelivery[]>> {
-    const query: Record<string, string | undefined> = {};
-    if (params?.limit !== undefined) query.limit = String(params.limit);
-    if (params?.offset !== undefined) query.offset = String(params.offset);
-
     return this.client.request<WebhookDelivery[]>(
       "GET",
       `/v1/webhooks/${encodeURIComponent(id)}/deliveries`,
-      Object.keys(query).length > 0 ? query : undefined,
+      toQuery(params),
     );
   }
 }
