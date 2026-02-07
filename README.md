@@ -1,21 +1,21 @@
-# @plop/sdk
+# @plop-email/sdk
 
 TypeScript SDK for the [Plop](https://plop.email) email service. Zero runtime dependencies.
 
 ## Installation
 
 ```bash
-npm install @plop/sdk
+npm install @plop-email/sdk
 # or
-bun add @plop/sdk
+bun add @plop-email/sdk
 # or
-pnpm add @plop/sdk
+pnpm add @plop-email/sdk
 ```
 
 ## Quick Start
 
 ```typescript
-import { Plop } from "@plop/sdk";
+import { Plop } from "@plop-email/sdk";
 
 const plop = new Plop({ apiKey: "plop_..." });
 // or set PLOP_API_KEY env var and omit the key:
@@ -165,7 +165,7 @@ import type {
   ListMessagesParams,
   WaitForOptions,
   VerifyWebhookParams,
-} from "@plop/sdk";
+} from "@plop-email/sdk";
 ```
 
 ## Requirements

@@ -1,5 +1,5 @@
 {
-  "name": "@plop/sdk",
+  "name": "@plop-email/sdk",
   "version": "0.1.0",
   "description": "TypeScript SDK for the Plop email service",
   "type": "module",
